@@ -1,0 +1,49 @@
+name: Compilar APK
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extrair o projeto do ZIP
+        run: |
+          set -e
+          ZIP=$(find . -maxdepth 1 -name '*.zip' | head -1)
+          echo "ZIP encontrado: $ZIP"
+          mkdir -p proj
+          unzip -q -o "$ZIP" -d proj
+          SETTINGS=$(find proj -name settings.gradle.kts | head -1)
+          echo "ROOT=$(dirname "$SETTINGS")" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: android-actions/setup-android@v3
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Compilar
+        working-directory: ${{ env.ROOT }}
+        run: gradle assembleDebug --no-daemon --stacktrace
+
+      - name: Preparar o APK
+        run: cp "$ROOT/app/build/outputs/apk/debug/app-debug.apk" Espelho.apk
+
+      - name: Publicar o APK
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-${{ github.run_number }}
+          name: Espelho (compilação ${{ github.run_number }})
+          files: Espelho.apk
